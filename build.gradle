@@ -1,0 +1,86 @@
+import org.apache.tools.ant.filters.ReplaceTokens
+
+group 'ru.cherkovskiy'
+version '1.0-SNAPSHOT'
+
+buildscript {
+    repositories {
+        mavenCentral()
+        jcenter()
+    }
+    dependencies {
+        classpath "org.springframework.boot:spring-boot-gradle-plugin:${project['spring.boot.version']}"
+        classpath "io.spring.gradle:dependency-management-plugin:${project['io.spring.gradle.dependency-management-plugin.version']}"
+    }
+
+}
+
+apply plugin: "io.spring.dependency-management"
+apply plugin: 'org.springframework.boot'
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+    jcenter()
+}
+
+configurations {
+    compile.exclude module: 'log4j'
+    compile.exclude module: 'log4j-over-slf4j'
+    compile.exclude module: 'slf4j-log4j12'
+}
+
+
+def spring = [
+        "org.springframework.boot:spring-boot-starter",
+        "org.springframework.boot:spring-boot-devtools",
+        "org.springframework:spring-jms:${project['org.springframework.spring-jms']}"
+]
+
+dependencies {
+    compile spring
+
+    // https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-core
+    compile group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: '2.8.8'
+    compile group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: '2.8.8'
+    compile group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-properties', version: '2.8.8'
+    compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.8.8'
+
+    compile "org.apache.commons:commons-lang3:${project['commons-lang3.version']}"
+    compile group: 'com.google.guava', name: 'guava', version: '21.0'
+    compileOnly "org.projectlombok:lombok:1.16.16"
+
+    testCompile group: 'org.springframework', name: 'spring-web', version: "${project['org.springframework.spring-jms']}"
+}
+
+springBoot {
+    //executable = true
+    mainClass = "com.axiomsl.Main"
+}
+
+jar {
+    baseName = 'CustomEnvironment'
+}
+
+task distJar(type: Copy) {
+    from jar.archivePath
+    into "${buildDir}/distJar"
+    rename(jar.archiveName, 'CustomEnvironment.jar')
+}
+
+build.dependsOn distJar
+distJar.dependsOn bootRepackage
+
+processResources {
+    outputs.upToDateWhen { false }
+    String version = project.version
+    filesMatching('**/application.yml') {
+        filter(ReplaceTokens, tokens: [
+                'version'               : version,
+                'app-name'              : 'CustomEnvironment',
+                'path-to-static-content': 'BOOT-INF/classes/static'
+        ])
+    }
+}
