@@ -1,6 +1,8 @@
 package com.axiomsl.properties.framework.convertors;
 
-public interface ConverterService {
+import com.axiomsl.properties.framework.resources.NamedResource;
+
+public interface ConverterService extends NamedResource {
 
     <From, To> boolean canConvert(Class<From> from, Class<To> toCls);
 

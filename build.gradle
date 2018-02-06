@@ -52,6 +52,9 @@ dependencies {
     compile group: 'com.google.guava', name: 'guava', version: '21.0'
     compileOnly "org.projectlombok:lombok:1.16.16"
 
+
+    compile group: 'javax.validation', name: 'validation-api', version: '2.0.1.Final'
+
     testCompile group: 'org.springframework', name: 'spring-web', version: "${project['org.springframework.spring-jms']}"
 }
 

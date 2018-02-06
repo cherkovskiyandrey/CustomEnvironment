@@ -2,21 +2,23 @@ package com.axiomsl.properties.framework.convertors;
 
 import com.google.common.collect.ImmutableTable;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.net.InetAddress;
 
-import static java.lang.String.format;
 
-
-public class StandardConverter implements ConverterService {
+public final class StandardConverterService extends ConverterServiceImpl {
 
     private static <To> Converter<String, To> stringPrepareHelper(Converter<String, To> func) {
         return str -> func.convert(str.trim());
     }
 
+    private final static String NAME = StandardConverterService.class.getName();
+
     /**
      * Row - from type, Column - to type.
      */
-    private final static ImmutableTable<Class, Class, Converter> converters = new ImmutableTable.Builder<Class, Class, Converter>()
+    private final static ImmutableTable<Class, Class, Converter> CONVERTERS = new ImmutableTable.Builder<Class, Class, Converter>()
 
             //bool
             .put(String.class, boolean.class, stringPrepareHelper(Boolean::parseBoolean))
@@ -46,6 +48,10 @@ public class StandardConverter implements ConverterService {
             .put(String.class, double.class, stringPrepareHelper(Double::parseDouble))
             .put(String.class, Double.class, stringPrepareHelper(Double::parseDouble))
 
+
+            .put(String.class, BigInteger.class, stringPrepareHelper(BigInteger::new))
+            .put(String.class, BigDecimal.class, stringPrepareHelper(BigDecimal::new))
+
             //InetAddress
             .put(String.class, InetAddress.class, stringPrepareHelper(InetAddress::getByName))
 
@@ -53,31 +59,7 @@ public class StandardConverter implements ConverterService {
 
             .build();
 
-    @Override
-    @SuppressWarnings("unchecked")
-    public <From, To> boolean canConvert(Class<From> fromCls, Class<To> toCls) {
-        return toCls.isAssignableFrom(fromCls) ||
-                converters.get(fromCls, toCls) != null;
-    }
-
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public <From, To> To convert(From from, Class<To> toCls) throws IllegalStateException {
-        final Class<From> fromCls = (Class<From>) from.getClass();
-        if (toCls.isAssignableFrom(fromCls)) {
-            return (To) from;
-        }
-
-        final Converter<From, To> converter = converters.get(fromCls, toCls);
-        if (converter == null) {
-            throw new IllegalStateException(format("Can`t convert from %s to %s", fromCls.getSimpleName(), toCls.getSimpleName()));
-        }
-
-        try {
-            return converter.convert(from);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
+    public StandardConverterService() {
+        super(NAME, CONVERTERS);
     }
 }

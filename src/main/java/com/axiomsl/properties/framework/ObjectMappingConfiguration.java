@@ -3,7 +3,7 @@ package com.axiomsl.properties.framework;
 
 import com.axiomsl.properties.framework.annotations.ConfigurationProperties;
 import com.axiomsl.properties.framework.annotations.ConfigurationValue;
-import com.axiomsl.properties.framework.annotations.SubConfigurationProperties;
+import com.axiomsl.properties.framework.annotations.NestedConfigurationProperties;
 
 public interface ObjectMappingConfiguration extends Configuration {
 
@@ -13,7 +13,7 @@ public interface ObjectMappingConfiguration extends Configuration {
      * Use annotations:
      * <ol>
      *     <li>{@link ConfigurationProperties}</li>
-     *     <li>{@link SubConfigurationProperties}</li>
+     *     <li>{@link NestedConfigurationProperties}</li>
      *     <li>{@link ConfigurationValue}</li>
      * </ol>
      *

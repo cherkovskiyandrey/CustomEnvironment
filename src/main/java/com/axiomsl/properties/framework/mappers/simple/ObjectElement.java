@@ -4,7 +4,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.ParameterizedType;
 import java.util.Optional;
 
-interface ObjectElement<T> {
+public interface ObjectElement<T> {
 
     <U extends Annotation> U getAnnotation(Class<U> annotationType);
 

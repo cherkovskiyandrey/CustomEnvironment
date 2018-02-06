@@ -1,6 +1,5 @@
 package com.axiomsl.properties.framework;
 
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -73,15 +72,32 @@ public interface Configuration {
 
 
     /**
-     * Return the raw property value associated with the given key,
+     * Return the property value associated with the given key,
      * or {@code defaultValue} if the key cannot be resolved.
+     * DefaultValue in raw form.
      *
      * @param key          the property name to resolve
      * @param targetType   the expected type of the property value
      * @param defaultValue the raw default value to convert and to return if no value is found
      */
-    Object getRawProperty(String key, Class<?> targetType, Object defaultValue) throws IllegalStateException;
+    <T> T getPropertyWithRawDefault(String key, Class<T> targetType, Object defaultValue);
 
+    /**
+     * Return the property value associated with the given key,
+     * or {@code null} if the key cannot be resolved.
+     *
+     * @param key          the property name to resolve
+     * @param defaultValue the raw default value to return if no value is found
+     * @return the raw value without convertion
+     */
+    Object getRawProperty(String key, String defaultValue);
+
+    /**
+     * Return the property value associated with the given key (never {@code null}).
+     *
+     * @throws IllegalStateException if the given key cannot be resolved
+     */
+    Object getRawRequiredProperty(String key) throws IllegalStateException;
 
     /**
      * Return all indexes for list of elements by prefix.

@@ -3,14 +3,13 @@ package com.axiomsl;
 import com.axiomsl.properties.framework.ConfigurableConfiguration;
 import com.axiomsl.properties.framework.Configuration;
 import com.axiomsl.properties.framework.convertors.Converter;
+import com.axiomsl.properties.framework.convertors.ConverterServiceImpl;
 import com.axiomsl.properties.framework.environments.StandardConfiguration;
 import com.axiomsl.properties.framework.sources.impl.PropertiesFile;
 import com.axiomsl.properties.framework.sources.impl.PropertiesFileAsResource;
+import com.google.common.collect.ImmutableTable;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 
 public class Main {
@@ -44,7 +43,7 @@ public class Main {
             final ConfigurableConfiguration configurableEnvironment = new StandardConfiguration();
             configurableEnvironment.getPropertySources().addLast(new PropertiesFile("serverProperties", "program.prop"));
 
-            Object d = configurableEnvironment.getRawProperty("some.properties.bool", boolean.class, false);
+            Object d = configurableEnvironment.getPropertyWithRawDefault("some.properties.bool", boolean.class, "false");
             System.out.println(d);
         }
         //-------------------------
@@ -80,6 +79,31 @@ public class Main {
         {
             System.out.println(PropertiesX.INSTANCE.getAxiomApplicationDir().getValue());
             System.out.println(PropertiesX.INSTANCE.getAxiomApplicationDir().getKey() + " -> " + PropertiesX.INSTANCE.getAxiomApplicationDir().getValue());
+        }
+        //Global custom convectors
+        //-------------------------
+        {
+            final ConfigurableConfiguration configurableEnvironment = new StandardConfiguration();
+            configurableEnvironment.getPropertySources().addLast(new PropertiesFile("serverProperties", "program.prop"));
+
+            ImmutableTable<Class, Class, Converter> extendedBooleanConverters = new ImmutableTable.Builder<Class, Class, Converter>()
+                    .put(String.class, boolean.class, new ExtendedBooleanConverter())
+                    .put(String.class, Boolean.class, new ExtendedBooleanConverter())
+                    .build();
+
+            configurableEnvironment.getConverterServices().addFirst(new ConverterServiceImpl("extraBooleanConverter", extendedBooleanConverters));
+
+            Object d = configurableEnvironment.getPropertyWithRawDefault("some.properties.bool", boolean.class, "false");
+            System.out.println(d);
+        }
+        //Local custom convectors
+        //-------------------------
+        {
+            final ConfigurableConfiguration configurableEnvironment = new StandardConfiguration();
+            configurableEnvironment.getPropertySources().addLast(new PropertiesFile("serverProperties", "program.prop"));
+
+            final SomeGroupOfProperties someGroupOfProperties = configurableEnvironment.resolvePropertyClass(SomeGroupOfProperties.class);
+            System.out.println(someGroupOfProperties.toString());
         }
     }
 }

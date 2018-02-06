@@ -3,12 +3,19 @@ package com.axiomsl.properties.framework.mappers.simple;
 import com.axiomsl.properties.framework.Configuration;
 import com.axiomsl.properties.framework.annotations.ConfigurationProperties;
 import com.axiomsl.properties.framework.annotations.ConfigurationValue;
-import com.axiomsl.properties.framework.annotations.SubConfigurationProperties;
+import com.axiomsl.properties.framework.annotations.NestedConfigurationProperties;
+import com.axiomsl.properties.framework.convertors.Converter;
+import com.axiomsl.properties.framework.convertors.EmptyConverter;
 import com.axiomsl.properties.framework.mappers.ObjectMapper;
+import com.axiomsl.properties.framework.mappers.simple.restrictions.RestrictProvider;
+import com.axiomsl.properties.framework.utils.CollectionBuilder;
 import com.axiomsl.properties.framework.utils.CommonUtils;
 import com.google.common.base.Strings;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 
 import static java.lang.String.format;
 
@@ -29,6 +36,7 @@ public class SimpleObjectMapper implements ObjectMapper {
         return readValueWithPrefix(token, prefix, configuration).build();
     }
 
+    @SuppressWarnings("unchecked")
     private <T> ObjectBuilder<T> readValueWithPrefix(Class<T> token, String prefix, Configuration configuration) {
         final ObjectBuilder<T> objectBuilder = ObjectBuilder.of(token);
 
@@ -36,8 +44,13 @@ public class SimpleObjectMapper implements ObjectMapper {
             final ConfigurationValue configurationValue = objectElement.getAnnotation(ConfigurationValue.class);
 
             if (configurationValue != null) {
-                if (isCollection(objectElement)) {
+                if (isArray(objectElement)) {
+                    final String fieldKey = CommonUtils.lazyJoin(".", prefix, configurationValue.value());
+                    throw new IllegalStateException(format("Configuration framework does not support arrays: %s -> %s", fieldKey, objectElement.getType().getName()));
+
+                } else if (isCollection(objectElement)) {
                     initCollection(objectElement, prefix, configurationValue, configuration);
+
                 } else {
                     initSimpleValue(objectElement, prefix, configurationValue, configuration);
                 }
@@ -46,8 +59,33 @@ public class SimpleObjectMapper implements ObjectMapper {
         return objectBuilder;
     }
 
+    private boolean isArray(ObjectElement<?> objectElement) {
+        return objectElement.getType().isArray();
+    }
+
     private boolean isCollection(ObjectElement<?> objectElement) {
         return objectElement.getAsParameterizedType().isPresent() && Collection.class.isAssignableFrom(objectElement.getType());
+    }
+
+    private <T> Converter<Object, T> createConverterInstance(Class<? extends Converter<Object, T>> specConvCls) throws IllegalAccessException, InstantiationException {
+        return specConvCls.newInstance();
+    }
+
+    private <T> T convertAs(String fieldKey, Class<T> fieldType, Object rawValue, Class<? extends Converter<Object, T>> specConvCls) {
+        T result = null;
+        if (rawValue != null) {
+            try {
+                final Converter<Object, T> converter = createConverterInstance(specConvCls);
+                result = converter.convert(rawValue);
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+            if (!result.getClass().equals(fieldType)) {
+                throw new IllegalStateException(format("Incompatible types for property %s: filed/param type is %s, but converter return type %s",
+                        fieldKey, fieldType, result.getClass()));
+            }
+        }
+        return result;
     }
 
     @SuppressWarnings("unchecked")
@@ -56,9 +94,14 @@ public class SimpleObjectMapper implements ObjectMapper {
         final boolean isRequired = configurationValue.required();
         final String defaultValue = configurationValue.defaultValue();
         final Class<T> fieldType = objectElement.getType();
-        final boolean isEnclosed = fieldType.getAnnotation(SubConfigurationProperties.class) != null;
+        final boolean isEnclosed = fieldType.getAnnotation(NestedConfigurationProperties.class) != null;
+        final Class<? extends Converter<Object, T>> specConvCls = (Class<? extends Converter<Object, T>>) configurationValue.converter();
 
-        Object fieldValue;
+        if (isEnclosed && !EmptyConverter.class.equals(specConvCls)) {
+            throw new IllegalStateException(format("Property: %s. Custom converter can`t be set for nested configurable classes.", fieldKey));
+        }
+
+        final T fieldValue;
         if (isRequired) {
             if (isEnclosed) {
                 fieldValue = readValueWithPrefix(fieldType, fieldKey, configuration).buildIfNotEmpty();
@@ -66,45 +109,82 @@ public class SimpleObjectMapper implements ObjectMapper {
                     throw new IllegalStateException(format("Could not find mandatory property %s", fieldKey));
                 }
             } else {
-                fieldValue = configuration.getRequiredProperty(fieldKey, fieldType);
+                if (EmptyConverter.class.equals(specConvCls)) {
+                    fieldValue = configuration.getRequiredProperty(fieldKey, fieldType);
+                } else {
+                    final Object rawValue = configuration.getRawRequiredProperty(fieldKey);
+                    fieldValue = convertAs(fieldKey, fieldType, rawValue, specConvCls);
+                }
             }
         } else {
             if (isEnclosed) {
                 fieldValue = readValueWithPrefix(fieldType, fieldKey, configuration).buildIfNotEmpty();
             } else {
-                fieldValue = configuration.getRawProperty(fieldKey, fieldType, Strings.isNullOrEmpty(defaultValue) ? null : defaultValue);
+                if (EmptyConverter.class.equals(specConvCls)) {
+                    fieldValue = configuration.getPropertyWithRawDefault(fieldKey, fieldType, Strings.isNullOrEmpty(defaultValue) ? null : defaultValue);
+                } else {
+                    final Object rawValue = configuration.getRawProperty(fieldKey, Strings.isNullOrEmpty(defaultValue) ? null : defaultValue);
+                    fieldValue = convertAs(fieldKey, fieldType, rawValue, specConvCls);
+                }
             }
         }
 
         if (fieldValue != null) {
-            objectElement.setValue((T) fieldValue);
+            objectElement.setValue(applyRestrictions(objectElement, fieldValue));
         }
     }
 
     @SuppressWarnings("unchecked")
-    private <T> void initCollection(ObjectElement<T> objectElement, String prefix, ConfigurationValue configurationValue, Configuration configuration) {
-        final Collection<Object> collection = new ArrayList<>();
-        final boolean isRequired = configurationValue.required();
-        final Class<?> collectionType = (Class<?>)objectElement.getAsParameterizedType().get().getActualTypeArguments()[0];
-        final String fieldKeyBase = CommonUtils.lazyJoin(".", prefix, configurationValue.value());
-        final boolean isEnclosed = collectionType.getAnnotation(SubConfigurationProperties.class) != null;
-        final Set<String> allIndexes = configuration.getIndexesByPrefix(fieldKeyBase);
-
-        allIndexes.forEach(idx -> {
-            final String fieldKey = fieldKeyBase + "[" + idx + "]";
-            final Object element = isEnclosed ? readValueWithPrefix(collectionType, fieldKey, configuration).buildIfNotEmpty() :
-                    configuration.getProperty(fieldKey, collectionType);
-
-            if (element != null) {
-                collection.add(element);
-            }
-        });
-
-        if (!collection.isEmpty()) {
-            objectElement.setValue((T) collection);
-        } else if (isRequired) {
-            throw new IllegalStateException(format("Could not find mandatory properties list %s", fieldKeyBase));
-        }
+    private <T> T applyRestrictions(ObjectElement<?> objectElement, T fieldValue) {
+        final RestrictProvider<T> restrictProvider = new RestrictProvider<>(objectElement, (Class<T>)fieldValue.getClass());
+        return restrictProvider.applyAllTo(fieldValue);
     }
 
+
+    @SuppressWarnings("unchecked")
+    private <T extends Collection<U>, U> void initCollection(ObjectElement<?> objectElementArg, String prefix, ConfigurationValue configurationValue, Configuration configuration) {
+        final ObjectElement<T> objectElement = (ObjectElement<T>) objectElementArg;
+        final T collection = CollectionBuilder.createBy(objectElement.getType());
+        final boolean isRequired = configurationValue.required();
+        final Class<U> collectionElementType = (Class<U>) objectElement.getAsParameterizedType().get().getActualTypeArguments()[0];
+        final String fieldKeyBase = CommonUtils.lazyJoin(".", prefix, configurationValue.value());
+        final boolean isEnclosed = collectionElementType.getAnnotation(NestedConfigurationProperties.class) != null;
+        final Set<String> allIndexes = configuration.getIndexesByPrefix(fieldKeyBase);
+        final Class<? extends Converter<Object, U>> specConvCls = (Class<? extends Converter<Object, U>>) configurationValue.converter();
+
+        if (isEnclosed && !EmptyConverter.class.equals(specConvCls)) {
+            throw new IllegalStateException(format("Collection property: %s. Custom converter can`t be set for nested configurable classes.", fieldKeyBase));
+        }
+
+        if (isEnclosed) {
+            allIndexes.forEach(idx -> {
+                final String fieldKey = fieldKeyBase + "[" + idx + "]";
+                Optional.ofNullable(readValueWithPrefix(collectionElementType, fieldKey, configuration).buildIfNotEmpty())
+                        .map(u -> applyRestrictions(objectElement, u))
+                        .ifPresent(collection::add);
+            });
+
+        } else if (!EmptyConverter.class.equals(specConvCls)) {
+            allIndexes.forEach(idx -> {
+                final String fieldKey = fieldKeyBase + "[" + idx + "]";
+                Optional.ofNullable(configuration.getRawProperty(fieldKey, null))
+                        .map(rawValue -> convertAs(fieldKey, collectionElementType, rawValue, specConvCls))
+                        .map(u -> applyRestrictions(objectElement, u))
+                        .ifPresent(collection::add);
+            });
+
+        } else {
+            allIndexes.forEach(idx -> {
+                final String fieldKey = fieldKeyBase + "[" + idx + "]";
+                Optional.ofNullable(configuration.getProperty(fieldKey, collectionElementType))
+                        .map(u -> applyRestrictions(objectElement, u))
+                        .ifPresent(collection::add);
+            });
+        }
+
+        if (collection.isEmpty() && isRequired) {
+            throw new IllegalStateException(format("Could not find mandatory properties list %s", fieldKeyBase));
+        }
+        objectElement.setValue(collection);
+    }
 }

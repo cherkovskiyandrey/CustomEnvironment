@@ -2,11 +2,11 @@ package com.axiomsl;
 
 
 import com.axiomsl.properties.framework.annotations.ConfigurationValue;
-import com.axiomsl.properties.framework.annotations.SubConfigurationProperties;
+import com.axiomsl.properties.framework.annotations.NestedConfigurationProperties;
 
 import java.net.InetAddress;
 
-@SubConfigurationProperties
+@NestedConfigurationProperties
 public class SomeSubGroupOfProps {
 
     @ConfigurationValue(value = "", defaultValue = "---")

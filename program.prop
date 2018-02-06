@@ -3,7 +3,7 @@
 
 some.test = 2.236
 
-some.properties.bool = true
+some.properties.bool = on
 some.properties.byte = 125
 some.properties.short = 123
 some.properties.int = 11111111
@@ -30,3 +30,22 @@ some.properties.listSubGroupOfProp[default].inetAddress = 192.168.10.92
 #some.properties.subGroupOfProp = dwedwedw
 #some.properties.subGroupOfProp.string = Hello sub obj SINGLE!
 #some.properties.subGroupOfProp.inetAddress = 0.0.0.0
+
+some.properties.propertyWithCustomSerializerClass={"a"=55;"b"="hello world from file"}
+
+
+some.properties.propertyWithCustomSerializerLst[0]={"a"=1;"b"="hello world from file form List"}
+some.properties.propertyWithCustomSerializerLst[10]={"a"=10;"b"="hello world from file form List"}
+some.properties.propertyWithCustomSerializerLst[20]={"a"=20;"b"="hello world from file form List"}
+some.properties.propertyWithCustomSerializerLst[30]={"a"=30;"b"="hello world from file form List"}
+
+# Does not support!
+some.properties.byteArray[0]=0x10
+some.properties.byteArray[1]=0x20
+
+some.properties.longWithBoarders = 1555555
+
+some.properties.longSetWithRestrictions[0] = -100
+some.properties.longSetWithRestrictions[1] = -9
+some.properties.longSetWithRestrictions[2] = 9
+some.properties.longSetWithRestrictions[3] = 1000

@@ -1,29 +1,37 @@
 package com.axiomsl.properties.framework.environments;
 
 import com.axiomsl.properties.framework.ConfigurableConfiguration;
-import com.axiomsl.properties.framework.MutablePropertySources;
 import com.axiomsl.properties.framework.PropertySourcesPropertyResolver;
-import com.axiomsl.properties.framework.convertors.StandardConverter;
+import com.axiomsl.properties.framework.convertors.ConverterService;
+import com.axiomsl.properties.framework.convertors.StandardConverterService;
 import com.axiomsl.properties.framework.mappers.simple.SimpleObjectMapper;
-import com.google.common.collect.ImmutableList;
+import com.axiomsl.properties.framework.resources.MutableResources;
+import com.axiomsl.properties.framework.sources.PropertySource;
 
-import java.util.List;
 import java.util.Set;
 
 public abstract class AbstractConfiguration implements ConfigurableConfiguration {
 
-    protected final MutablePropertySources propertySources;
+    protected final MutableResources<PropertySource<?>> propertySources;
+    protected final MutableResources<ConverterService> converterServices;
     protected final PropertySourcesPropertyResolver propertyResolver;
 
 
     public AbstractConfiguration() {
-        this.propertySources = new MutablePropertySources();
-        this.propertyResolver = new PropertySourcesPropertyResolver(this.propertySources, ImmutableList.of(new StandardConverter()), new SimpleObjectMapper());
+        this.propertySources = new MutableResources<>();
+        this.converterServices = new MutableResources<>();
+        this.converterServices.addFirst(new StandardConverterService());
+        this.propertyResolver = new PropertySourcesPropertyResolver(this.propertySources, this.converterServices, new SimpleObjectMapper());
     }
 
     @Override
-    public MutablePropertySources getPropertySources() {
-        return this.propertySources;
+    public MutableResources<PropertySource<?>> getPropertySources() {
+        return propertySources;
+    }
+
+    @Override
+    public MutableResources<ConverterService> getConverterServices() {
+        return converterServices;
     }
 
     @Override
@@ -68,8 +76,8 @@ public abstract class AbstractConfiguration implements ConfigurableConfiguration
     }
 
     @Override
-    public Object getRawProperty(String key, Class targetType, Object defaultValue) {
-        return propertyResolver.getRawProperty(key, targetType, defaultValue);
+    public <T> T getPropertyWithRawDefault(String key, Class<T> targetType, Object defaultValue) {
+        return propertyResolver.getPropertyWithRawDefault(key, targetType, defaultValue);
     }
 
     @Override
@@ -77,4 +85,13 @@ public abstract class AbstractConfiguration implements ConfigurableConfiguration
         return propertyResolver.getIndexesByPrefix(fieldKeyBase);
     }
 
+    @Override
+    public Object getRawProperty(String key, String defaultValue) {
+        return propertyResolver.getRawProperty(key, defaultValue);
+    }
+
+    @Override
+    public Object getRawRequiredProperty(String key) throws IllegalStateException {
+        return propertyResolver.getRawRequiredProperty(key);
+    }
 }
